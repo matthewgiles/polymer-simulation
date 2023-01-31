@@ -17,27 +17,27 @@ import numpy as np
 import operator
 
 
-class Atom:
+class Atom(object):
     """ A Class for storing atom information """
 
-    def __init__(self):
+    def __init__(self, id, type, rx, ry, rz):
         """ Initialise the class """
-        self.id = 0                              # id of the atom
-        self.type = 0                            # type of the atom
-        self.x = np.array([0.0,0.0,0.0],dtype=np.float64)     # position of the atom
-        self.image = np.array([0,0,0],dtype=np.int32)         # image flags for atoms
+        self.id = id                             # id of the atom
+        self.type = type                         # type of the atom
+        self.r = np.array([rx, ry, rz], dtype = np.float64)     # position of the atom
+        self.image = np.array([0,0,0], dtype = np.int32)         # image flags for atoms
         self.unwrap_flag = False
 
     def sep(self,B):
         """ Find separation of this Atom and Atom B """
-        return np.sqrt( (self.x[0]-B.x[0])**2 + 
-                        (self.x[1]-B.x[1])**2 + (self.x[2]-B.x[2])**2 )
+        return np.sqrt( (self.r[0]-B.r[0])**2 + 
+                        (self.r[1]-B.r[1])**2 + (self.r[2]-B.r[2])**2 )
 
     def minus(self,B):
-        """ Subtract B.x vector from self.x vector """
+        """ Subtract B.r vector from self.r vector """
         AminusB = np.array([0.0,0.0,0.0],dtype=np.float64)
         for i in range(3):
-            AminusB[i] = self.x[i] - B.x[i]
+            AminusB[i] = self.r[i] - B.r[i]
         return AminusB
 
     def xdot(self,B):
@@ -46,107 +46,73 @@ class Atom:
         # TO DO : find AdotB
         return AdotB
 
-    def unwrap(self):
+    def unwrap(self, L):
         """ Unwraps the coordinates for periodic box, and overwrites x """
         if not self.unwrap_flag:   # first check it has not already been done
             for j in range(3):
-                self.x[j] = self.x[j] + self.image[j]*L[j] # unwrap
+                self.r[j] = self.r[j] + self.image[j]*L[j] # unwrap
             unwrap_flag = True
 
 
+class Processor(object):
 
-def readframe_unwrap(infile,N):
-    """ Read a single frame of atoms from a dump file 
-        Rescale coordinates to be in rnage -L/2 to L/2
-        DOES NOT Unwrap corrdinates for periodic box """
-
-    atoms = []
-    L = []
-
-    # read in the 9 header lines of the dump file
-    for i in range(9):
-        line = infile.readline()
-        if i==5 or i==6 or i==7:
-            # get the box size
-            line = line.split()
-            L.append( np.float64(line[1]) - np.float64(line[0]) )
-
-    # now read the atoms
-    for i in range(N):
-        line = infile.readline()
-        line = line.split()
-        newatom = Atom()
-        newatom.id = int(line[0])
-        newatom.type = int(line[1])
-        for j in range(3):
-            newatom.x[j] = np.float64(line[j+2]) # scale
-        atoms.append(newatom)
-
-    # make sure atoms are sorted by id
-    atoms.sort(key=operator.attrgetter('id'))
-
-    return atoms,L
-
-
-def lines_in_file(filename):
-    """ Get the number of lines in the file """
-
-    with open(filename) as f:
-        for i, l in enumerate(f):
-            pass
-
-    return i + 1
-
-
-def radius_of_gyration(atoms,L):
-    """ Calculate the radius of gytation -- Rg^2 = (1/N) sum ( r_k - r_mean )^2 
-    remember to unwrap periodic boundaries """
-
-    # add code here
+    def __init__(self):
+        self.__file = self.__N = self.__dump = None
     
-    return 0.0
+    def set(self, file, N):
+        self.__file = file
+        self.__N = N
 
+    def noLines(self):
+        """ Get the number of lines in the file """
 
+        with open(self.__file, 'r') as dump:
+            for i, _ in enumerate(dump):
+                pass
 
+        return i + 1
+    
+    def readFrame(self):
+        atoms = []
+        L = []
+        
+        for i in range(9):
+            line = self.__dump.readline().split()
+            if i >= 5 and i <= 7:
+                # get the box size
+                L.append(np.float64(line[1]) - np.float64(line[0]))
+        
+        for i in range(self.__N):
+            line = self.__dump.readline().split()
+            a = Atom(id = line[0], type = line[1], rx = line[2], ry = line[3], rz = line[4])
+            atoms.append(a)
+            
+        atoms.sort(key = operator.attrgetter('id'))
 
-############################################################################
-#### Start of the main program
+        return atoms, L
 
-dumpfilename = 'dump.DNA'   # this is hardcoded here, could instead read as command line argument
-Natoms = 200   # this is hardcoded here, could instead read as command line argument
+    def process(self, outputFile = 'r_g_1.dat'):
+        if self.__file is None:
+            return
+        
+        noFrames = int(self.noLines() / (self.__N + 9))
+        
+        out = open(outputFile, 'w')  
+        out.write("# frame number, radius of gyration\n")
+        
+        self.__dump = open(self.__file, 'r')
+        
+        for frame in range(noFrames):
+            atoms, L = self.readFrame()
+            rG = self.radiusOfGyration(atoms, L)
+            out.write("%i %.5f\n" % (frame + 1, rG))
 
-outfile_Rg = 'r_g_1.dat'
+        self.__dump.close()
+        out.close()
 
-Nlines = lines_in_file(dumpfilename)  # get length of file
-Nframes = int(Nlines / (Natoms+9))         # there are 9 header lines in each frame
+    def radiusOfGyration(self, atoms, L):
+        return 0.0
 
-# open the intput file
-inf = open(dumpfilename, 'r')  
-
-# open the output files and print a header
-ouf_rg = open(outfile_Rg, 'w')  
-ouf_rg.write("# frame number, radius of gyration\n")
-
-# go through the file frame by frame
-for frame in range(Nframes):
-    # read the frame, unwrapping periodic coordinates
-    atoms, L = readframe_unwrap(inf,Natoms)
-
-    # unwarp period boundary coordinates -- needed for radius of gyration
-    for i in range(len(atoms)):
-        atoms[i].unwrap()
-
-    # calculate radius of gyration
-    Rg = radius_of_gyration(atoms,L)
-
-    # output some results
-    ouf_rg.write( "%i %.5f\n"%(frame+1,Rg) )
-
-
-# close the files
-inf.close()
-
-ouf_rg.close()
-
-
-# Finished!
+p = Processor()
+p.set('dump.DNA', 100)
+p.process()
