@@ -20,15 +20,15 @@ import operator
 class Atom(object):
     """ A Class for storing atom information """
 
-    def __init__(self, id, type, rx, ry, rz):
+    def __init__(self, id, type, rx, ry, rz, ix, iy, iz):
         """ Initialise the class """
         self.id = id                             # id of the atom
         self.type = type                         # type of the atom
         self.r = np.array([rx, ry, rz], dtype = np.float64)     # position of the atom
-        self.image = np.array([0,0,0], dtype = np.int32)         # image flags for atoms
+        self.image = np.array([ix, iy, iz], dtype = np.int32)         # image flags for atoms
         self.unwrap_flag = False
 
-    def sep(self,B):
+    def sep(self, B):
         """ Find separation of this Atom and Atom B """
         return np.sqrt( (self.r[0]-B.r[0])**2 + 
                         (self.r[1]-B.r[1])**2 + (self.r[2]-B.r[2])**2 )
@@ -51,7 +51,7 @@ class Atom(object):
         if not self.unwrap_flag:   # first check it has not already been done
             for j in range(3):
                 self.r[j] = self.r[j] + self.image[j]*L[j] # unwrap
-            unwrap_flag = True
+            self.unwrap_flag = True
 
 
 class Processor(object):
@@ -75,7 +75,7 @@ class Processor(object):
     def readFrame(self):
         atoms = []
         L = []
-        
+
         for i in range(9):
             line = self.__dump.readline().split()
             if i >= 5 and i <= 7:
@@ -84,7 +84,8 @@ class Processor(object):
         
         for i in range(self.__N):
             line = self.__dump.readline().split()
-            a = Atom(id = line[0], type = line[1], rx = line[2], ry = line[3], rz = line[4])
+            a = Atom(id = line[0], type = line[1], rx = line[2], ry = line[3], rz = line[4], 
+                     ix = line[5], iy = line[6], iz = line[7])
             atoms.append(a)
             
         atoms.sort(key = operator.attrgetter('id'))
@@ -111,7 +112,17 @@ class Processor(object):
         out.close()
 
     def radiusOfGyration(self, atoms, L):
-        return 0.0
+        r_mean = np.array([0.0, 0.0, 0.0])
+        for a in atoms:
+            a.unwrap(L)
+            r_mean += a.r
+        r_mean /= self.__N
+        r_mean = Atom(-1, -1, r_mean[0], r_mean[1], r_mean[2], 0, 0, 0)
+        
+        r_2 = 0.0
+        for a in atoms:
+            r_2 += a.sep(r_mean) ** 2
+        return np.sqrt(r_2/self.__N)
 
 p = Processor()
 p.set('dump.DNA', 100)
