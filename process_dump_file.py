@@ -113,6 +113,8 @@ class Processor(object):
 
     def radiusOfGyration(self, atoms, L):
         r_mean = np.array([0.0, 0.0, 0.0])
+        # Unwrap each atom and calculate the CoM by summing the position of all atoms, and
+        # dividing by the number of atoms
         for a in atoms:
             a.unwrap(L)
             r_mean += a.r
@@ -120,6 +122,7 @@ class Processor(object):
         r_mean = Atom(-1, -1, r_mean[0], r_mean[1], r_mean[2], 0, 0, 0)
         
         r_2 = 0.0
+        # Radius of gyration squared is the sum of the squares of the separation of each atom and the CoM
         for a in atoms:
             r_2 += a.sep(r_mean) ** 2
         return np.sqrt(r_2/self.__N)
