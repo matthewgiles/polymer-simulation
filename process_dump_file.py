@@ -158,7 +158,7 @@ class Processor(object):
         for frame in range(noFrames):
             self.readFrame()
             rG = self.radiusOfGyration()
-            print(self.twist())
+            print(self.twist() + calculate_Writhe(self.__atoms))
             out.write("%i %.5f\n" % (frame + 1, rG))
 
         self.__dump.close()
@@ -191,16 +191,16 @@ class Processor(object):
             perpendiculars.append(unit(cross(tangents[i], self.__atoms[i].q.fAxis())))
         
         binomials = [unit(cross(tangents[self.__N - 1], tangents[0]))] 
-        angles = [np.arccos(round(dot(tangents[self.__N - 1], tangents[0]), 10))]
+        angles = [np.arccos(dot(tangents[self.__N - 1], tangents[0]))]
         mshift = [np.matmul(rotation_matrix(binomials[0], angles[0]), perpendiculars[self.__N - 1])]
         for i in range(1, self.__N):
             binomials.append(unit(cross(tangents[i - 1], tangents[i])))
-            angles.append(np.arccos(round(dot(tangents[i - 1], tangents[0]), 10)))
+            angles.append(np.arccos(dot(tangents[i - 1], tangents[i])))
             mshift.append(np.matmul(rotation_matrix(binomials[i], angles[i]), perpendiculars[i - 1]))
 
         Tw = 0
-        for i in range(0, self.__N - 1):
-            Tw += dot(tangents[i], cross(mshift[i], perpendiculars[i]))
+        for i in range(0, self.__N):
+            Tw += np.arcsin(dot(tangents[i], cross(mshift[i], perpendiculars[i])))
         
         return Tw / (2.0 * np.pi)
 
