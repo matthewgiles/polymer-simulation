@@ -2,10 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from process_dump_file import Processor
 
-TOTAL = 7500000
+TOTAL = 8000000
 INTERVAL = 5000
 NO_MOLECULES = 500
-IGNORE = 3800000
+IGNORE = 0
 NO_REPEATS = 5
 
 def process(linking, seeds, energy):
@@ -25,7 +25,7 @@ def process(linking, seeds, energy):
       ws.append(w)
       timesteps = timestep
     output[lk] = [timesteps, rs, ts, ws]
-  np.save("dict_" + str(energy) + ".npy", output)
+  np.save("dict_1_" + str(energy) + ".npy", output)
 
 def get_average(array):
   return np.mean(array, axis = 0)
@@ -41,12 +41,17 @@ def t_cor(repeats):
   for r in repeats:
     cs.append(correlation(TOTAL, r[int(IGNORE/INTERVAL):]))
   cs = get_average(cs)
+  """plt.figure()
+  plt.xlabel("Timesteps after equilibriation")
+  plt.ylabel("Rxx")
+  plt.plot(np.arange(0, INTERVAL * len(cs[:400]), INTERVAL), cs[:400])
+  plt.show()"""
   cs = cs[:4]
   slope, _ = np.polyfit(np.arange(0, INTERVAL * len(cs), INTERVAL), np.log(cs), 1)
   return -1 / slope
 
 def calculate_averages(energy):
-  data = np.load("dict_" + str(energy) + ".npy", allow_pickle=True).item()
+  data = np.load("dict_1_" + str(energy) + ".npy", allow_pickle=True).item()
 
   out = open("averages_" + str(energy) + ".dat", 'w')
   out.write("# linking number, radius of gyration, gyration error, twist, twist error, writhe error,\n")
@@ -54,6 +59,7 @@ def calculate_averages(energy):
     out.write(str(lk))
     for repeats in data[lk][1:]:
       out.write(", " + str(np.mean(flat(repeats))) + ", " + str(error(repeats)))
+    out.write(", " + str(np.var(flat(data[lk][2]))) + ", " + str(t_cor(data[lk][2])))
     out.write("\n")
   out.close()
 
@@ -80,20 +86,23 @@ def correlation(T, x):
 
 
 def gyration_fluctuation(energy):
-  data = np.load("dict_" + str(energy) + ".npy", allow_pickle=True).item()
-  rGs = get_average(data[2][1])[int(IGNORE/INTERVAL):]
-  out = open('gyration.dat', 'w')
-  for rG in rGs:
-    out.write(str(rG) + "\n")
-  out.close()
+  data = np.load("dict_1_" + str(energy) + ".npy", allow_pickle=True).item()
+  #rGs = flat(data[5][1])
+  rGs = data[5][1][4][int(IGNORE/INTERVAL):]
   plt.hist(rGs, bins = 50)
+  plt.xlabel("Radius of Gyration, σ")
+  plt.ylabel("Frequency")
   plt.show()
+  #out = open('gyration.dat', 'w')
+  """for rG in rGs:
+    out.write(str(rG) + "\n")
+  out.close()"""
 
 
-process([2,3,4,5,6], [12345, 23456, 34567, 45678, 56789], 50)
-process([2,3,4,5,6], [12345, 23456, 34567, 45678, 56789], 30)
-process([2,3,4,5,6], [12345, 23456, 34567, 45678, 56789], 40)
-calculate_averages(30)
-calculate_averages(40)
-calculate_averages(50)
-#gyration_fluctuation(50)
+#process([2,3,4,5,6], [12345, 23456, 34567, 45678, 56789], 30)
+#process([2,3,4,5,6], [12345, 23456, 34567, 45678, 56789], 40)
+#process([2,3,4,5,6], [12345, 23456, 34567, 45678, 56789], 50)
+#calculate_averages(30)
+#calculate_averages(40)
+#calculate_averages(50)
+gyration_fluctuation(50)

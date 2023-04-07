@@ -12,6 +12,7 @@
 #      ix etc. are image flags for taking periodic boundaries into account
 # need to adjust these to range from -L/2 to L/2
 
+MIN_FRAME = 1400
 
 import numpy as np
 import operator
@@ -111,11 +112,12 @@ class Atom(object):
 class Processor(object):
 
     def __init__(self):
-        self.__file = self.__N = self.__dump = self.__atoms = self.__L = None
+        self.__file = self.__N = self.__outputFile = self.__dump = self.__atoms = self.__L = None
     
-    def set(self, file, N):
+    def set(self, file, N, outputFile = 'r_g_3.dat'):
         self.__file = file
         self.__N = N
+        self.__outputFile = outputFile
 
     def noLines(self):
         """ Get the number of lines in the file """
@@ -144,25 +146,40 @@ class Processor(object):
 
         self.__atoms.sort(key=operator.attrgetter('id'))
 
-    def process(self, outputFile = 'r_g_3.dat'):
+    def process(self):
         if self.__file is None:
             return
         
         noFrames = int(self.noLines() / (self.__N + 9))
         
-        out = open(outputFile, 'w')  
-        out.write("# frame number, radius of gyration\n")
+        out = open(self.__outputFile, 'w')  
+        out.write("# timestep, radius of gyration\n")
         
         self.__dump = open(self.__file, 'r')
+
+        radii = []
+        twists = []
+        writhes = []
+        timesteps = []
         
         for frame in range(noFrames):
-            self.readFrame()
+            if frame < MIN_FRAME:
+                for _ in range(self.__N + 9):
+                    self.__dump.readline()
+                continue
+            self.readFrame() 
             rG = self.radiusOfGyration()
-            print(self.twist() + calculate_Writhe(self.__atoms))
-            out.write("%i %.5f\n" % (frame + 1, rG))
+            radii.append(rG)
+            tW = self.twist()
+            twists.append(tW)
+            wR = calculate_Writhe(self.__atoms)
+            writhes.append(wR)
+            timesteps.append(frame * 5000)
+            out.write("%i %.5f %.5f %.5f\n" % (frame * 5000, rG, tW, wR))
 
         self.__dump.close()
         out.close()
+        return timesteps, radii, twists, writhes
 
     def radiusOfGyration(self):
         r_mean = np.array([0.0, 0.0, 0.0])
@@ -203,7 +220,3 @@ class Processor(object):
             Tw += np.arcsin(dot(tangents[i], cross(mshift[i], perpendiculars[i])))
         
         return Tw / (2.0 * np.pi)
-
-p = Processor()
-p.set('dump3.DNA', 100)
-p.process()
